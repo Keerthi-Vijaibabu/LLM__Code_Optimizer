@@ -1,0 +1,43 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Python: Create venv (backend)",
+      "type": "shell",
+      "command": "py -m venv .venv",
+      "options": { "cwd": "${workspaceFolder}/backend" }
+    },
+    {
+      "label": "Python: Install deps (backend)",
+      "type": "shell",
+      "command": ".\\.venv\\Scripts\\Activate.ps1; python -m pip install -r requirements.txt",
+      "windows": { "command": ".\\.venv\\Scripts\\Activate.ps1; python -m pip install -r requirements.txt" },
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "dependsOn": "Python: Create venv (backend)"
+    },
+    {
+      "label": "Backend: Start (uvicorn)",
+      "type": "shell",
+      "command": ".\\.venv\\Scripts\\Activate.ps1; python -m uvicorn llm_api:app --host 127.0.0.1 --port 8000 --reload",
+      "windows": { "command": ".\\.venv\\Scripts\\Activate.ps1; python -m uvicorn llm_api:app --host 127.0.0.1 --port 8000 --reload" },
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": { "regexp": ".*" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Uvicorn running on",
+          "endsPattern": "Uvicorn running on"
+        }
+      },
+      "dependsOn": "Python: Install deps (backend)"
+    },
+    {
+      "label": "Backend: Stop",
+      "type": "shell",
+      "command": "powershell -NoProfile -Command \"Get-Process -Name python | Where-Object { $_.Path -like '*backend*' } | Stop-Process -Force\"",
+      "problemMatcher": []
+    }
+  ]
+}

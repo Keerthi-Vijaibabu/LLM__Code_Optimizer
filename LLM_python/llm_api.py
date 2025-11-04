@@ -111,3 +111,38 @@ def validate_llm_json(text: str) -> dict:
     except json.JSONDecodeError:
         raise HTTPException(status_code=502, detail="Model did not return valid JSON")
     try:
+        validate(instance=obj, schema=LLM_JSON_SCHEMA)
+    except ValidationError as e:
+        raise HTTPException(status_code=502, detail=f"JSON schema invalid: {e.message}")
+    # Basic response size clamp
+    if len(text.encode("utf-8")) > 16_000:
+        raise HTTPException(status_code=502, detail="Model response too large")
+    return obj
+
+def extract_minimal(obj: dict, original_code: str) -> OptimizeResp:
+    findings = obj.get("findings") or []
+    out_suggestions: list[Suggestion] = []
+    # We don't apply the patch on the backend (VS Code side will do). Return the original text.
+    for f in findings[:5]:  # keep it small
+        sug = f.get("suggestion") or {}
+        out_suggestions.append(Suggestion(
+            id=f.get("id","LLM-001"),
+            title=f.get("title","Optimization"),
+            severity=f.get("severity","low"),
+            summary=sug.get("summary"),
+            has_patch=bool(sug.get("patch"))
+        ))
+    metrics = {"model_info": obj.get("model_info", {}), "findings_count": len(findings)}
+    return OptimizeResp(optimized_code=original_code, suggestions=out_suggestions, metrics=metrics)
+
+# --------- Endpoint ----------
+@app.post("/optimize", response_model=OptimizeResp)
+async def optimize(req: OptimizeReq):
+    if not req.code.strip():
+        raise HTTPException(status_code=400, detail="Empty code")
+
+    messages = build_prompt(req.code)
+    text = await call_ollama(messages)
+    obj = validate_llm_json(text)
+    resp = extract_minimal(obj, req.code)
+    return resp
